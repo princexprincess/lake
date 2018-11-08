@@ -209,10 +209,31 @@ class FrozenLake(object):
         """
         values = dict((state, 0.0) for state in self.states)
         ### YOUR CODE HERE ###
-        for state in self.states:
-            for action in self.actions:
-                values[state] = max(values[state], Qvalues[(state, action)])
-
+        thresh = 1
+        while thresh:
+            thresh = 0
+            values_temp = {}
+            for state in self.states:
+                V_is = []
+                for action in self.actions:
+                    transitions = self.get_transitions(state,action)
+                    V_i = 0
+                    for new_state, prob in transitions:
+                        if new_state in self.targets:
+                            V_i += prob * (self.living_reward + self.gamma * self.target_reward)
+                        elif new_state in self.holes:
+                            V_i += prob * (self.living_reward + self.gamma * self.hole_reward)
+                        else:
+                            V_i += prob * (self.living_reward + self.gamma * values[new_state])
+                    V_is.append(V_i)
+                V_i = max(V_is)
+                values_temp[state] = V_i
+            for state in self.states:
+                if abs(values[state] - values_temp[state]) > threshold:
+                    thresh = 1
+            values = values_temp
+            self.print_values(values)
+            print()
         return values
 
     def extract_policy(self, values):
@@ -221,7 +242,14 @@ class FrozenLake(object):
         """
         policy = {}
         ### YOUR CODE HERE ###
-
+        for state in self.states:
+            V_is = []
+                for action in self.actions:
+                    transitions = self.get_transitions(state,action)
+                    V_i = 0
+                    for new_state, prob in transitions:
+                        V_i += prob * (self.living_reward + self.gamma * values[new_state])
+                    V_is.append(V_i)
         return policy
 
 
@@ -259,9 +287,9 @@ if __name__ == "__main__":
     # question 1
     opt_values = lake.value_iteration()
     lake.print_values(opt_values)
-    opt_policy = lake.extract_policy(opt_values)
-    lake.print_map(opt_policy)
-    print(lake.test_policy(opt_policy))
+    # opt_policy = lake.extract_policy(opt_values)
+    # lake.print_map(opt_policy)
+    # print(lake.test_policy(opt_policy))
     
     # question 2
     # Qvalues = lake.Qlearner(alpha=0.5, epsilon=0.5, num_robots=10)
