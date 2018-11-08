@@ -129,16 +129,15 @@ class FrozenLake(object):
                 policy[(i,j)] = random.choice(self.actions)
         return policy
 
-    def gen_rand_set(self, width, height, size):
-        """
-        Generate a random set of grid spaces.
-        Useful for creating randomized maps.
-        """
-        mySet = set([])
-        while len(mySet) < size:
-            mySet.add((random.randint(0, width), random.randint(0, height)))
-        return mySet
-
+    # def gen_rand_set(self, width, height, size):
+    #     """
+    #     Generate a random set of grid spaces.
+    #     Useful for creating randomized maps.
+    #     """
+    #     mySet = set([])
+    #     while len(mySet) < size:
+    #         mySet.add((random.randint(0, width), random.randint(0, height)))
+    #     return mySet
 
     def print_map(self, policy=None):
         """
@@ -232,8 +231,6 @@ class FrozenLake(object):
                 if abs(values[state] - values_temp[state]) > threshold:
                     thresh = 1
             values = values_temp
-            self.print_values(values)
-            print()
         return values
 
     def extract_policy(self, values):
@@ -243,13 +240,20 @@ class FrozenLake(object):
         policy = {}
         ### YOUR CODE HERE ###
         for state in self.states:
-            V_is = []
-                for action in self.actions:
-                    transitions = self.get_transitions(state,action)
-                    V_i = 0
-                    for new_state, prob in transitions:
-                        V_i += prob * (self.living_reward + self.gamma * values[new_state])
-                    V_is.append(V_i)
+            pols = []
+            for action in self.actions:
+                transitions = self.get_transitions(state,action)
+                val = 0
+                for new_state, prob in transitions:
+                    if new_state in self.targets:
+                        val += prob * (self.living_reward + self.gamma * self.target_reward)
+                    elif new_state in self.holes:
+                        val += prob * (self.living_reward + self.gamma * self.hole_reward)
+                    else:
+                        val += prob * (self.living_reward + self.gamma * values[new_state])
+                pols.append((val,action))
+            opt = max(pols)
+            policy[state] = opt[1]
         return policy
 
 
@@ -264,9 +268,64 @@ class FrozenLake(object):
                 Qvalues[(state, action)] = 0
 
         ### YOUR CODE HERE ###
-
+        for i in range(num_robots):
+            robot_pos = (0,0)
+            while True:
+                choice = random.choices(['random','policy'], weights=[epsilon,1-epsilon])
+                if choice == 'random':
+                    action = random.choices(self.actions)
+                    robot_pos_new = self.move(robot_pos,action)
+                else:
+                    opt = max([(Qvalues[(robot_pos,action)],action) for action in self.actions])
+                    action = opt[1]
+                    robot_pos_new = self.move(robot_pos,action)
+                if robot_pos_new in self.targets:
+                    sample = self.living_reward + self.gamma * self.target_reward
+                elif robot_pos_new in self.holes:
+                    sample = self.living_reward + self.gamma * self.hole_reward
+                else:
+                    opt = max([(Qvalues[(robot_pos_new,action)],action) for action in self.actions])
+                    sample = self.living_reward + self.gamma * Qvalues[(robot_pos_new,opt[1])]
+                Qvalues[(robot_pos,action)] = (1-alpha)*Qvalues[(robot_pos,action)] + alpha * sample
+                if robot_pos_new in self.targets or robot_pos_new in self.holes:
+                    break
+                else:
+                    robot_pos = robot_pos_new
         return Qvalues
 
+    def Qlearner_mark_II(self, alpha, epsilon, num_robots):
+        Qvalues = {}
+        for state in self.states:
+            for action in self.actions:
+                Qvalues[(state, action)] = 0
+        for i in range(num_robots):
+            robot_pos = (0,0)
+            while True:
+                k = 3
+                epsilon = 1/math.log(k)
+                alpha = 1/math.log(k)
+                choice = random.choices(['random','policy'], weights=[epsilon,1-epsilon])
+                if choice == 'random':
+                    action = random.choices(self.actions)
+                    robot_pos_new = self.move(robot_pos,action)
+                else:
+                    opt = max([(Qvalues[(robot_pos,action)],action) for action in self.actions])
+                    action = opt[1]
+                    robot_pos_new = self.move(robot_pos,action)
+                if robot_pos_new in self.targets:
+                    sample = self.living_reward + self.gamma * self.target_reward
+                elif robot_pos_new in self.holes:
+                    sample = self.living_reward + self.gamma * self.hole_reward
+                else:
+                    opt = max([(Qvalues[(robot_pos_new,action)],action) for action in self.actions])
+                    sample = self.living_reward + self.gamma * Qvalues[(robot_pos_new,opt[1])]
+                Qvalues[(robot_pos,action)] = (1-alpha)*Qvalues[(robot_pos,action)] + alpha * sample
+                k += 1
+                if robot_pos_new in self.targets or robot_pos_new in self.holes:
+                    break
+                else:
+                    robot_pos = robot_pos_new
+        return Qvalues
 
 if __name__ == "__main__":
    
@@ -279,21 +338,39 @@ if __name__ == "__main__":
     holes = set([(4, 0), (4, 1), (3, 0), (3, 1), (6, 4), (6, 5), (0, 7), (0, 6), (1, 7)])
     lake = FrozenLake(width, height, start, targets, blocked, holes)
 
-    rand_policy = lake.get_random_policy()
-    lake.print_map()
-    lake.print_map(rand_policy)
-    print(lake.test_policy(rand_policy))
+    # rand_policy = lake.get_random_policy()
+    # lake.print_map()
+    # lake.print_map(rand_policy)
+    # print(lake.test_policy(rand_policy))
 
-    # question 1
+    # part 1
+    print('#################### Part 1 ####################')
     opt_values = lake.value_iteration()
     lake.print_values(opt_values)
-    # opt_policy = lake.extract_policy(opt_values)
-    # lake.print_map(opt_policy)
-    # print(lake.test_policy(opt_policy))
+    print()
+
+    # part 2
+    print('#################### Part 2 ####################')
+    opt_policy = lake.extract_policy(opt_values)
+    lake.print_map(opt_policy)
+    print(lake.test_policy(opt_policy))
+    print()
     
-    # question 2
-    # Qvalues = lake.Qlearner(alpha=0.5, epsilon=0.5, num_robots=10)
-    # learned_values = lake.QValue_to_value(Qvalues)
-    # learned_policy = lake.extract_policy(learned_values)
-    # lake.print_map(learned_policy)
-    # print(lake.test_policy(learned_policy))
+    # part 3
+    print('#################### Part 3 ####################')
+    Qvalues = lake.Qlearner(alpha=0.5, epsilon=0.5, num_robots=50)
+    learned_values = lake.QValue_to_value(Qvalues)
+    learned_policy = lake.extract_policy(learned_values)
+    lake.print_map(learned_policy)
+    print(lake.test_policy(learned_policy), 'with 50 robots') # more robot (e.g. 1000 robots) may not get better TOTAL REWARD according to my tests.
+    print()
+
+# part 4
+    print('#################### Part 4 ####################')
+    # generate a random new map is not quite simple, targets and holes and obstacles could overlap
+    Qvalues = lake.Qlearner_mark_II(alpha=0.5, epsilon=0.5, num_robots=50) # use a decreasing epsilon = 1/math.log(k) and alpha = 1/math.log(k)
+    learned_values = lake.QValue_to_value(Qvalues)
+    learned_policy = lake.extract_policy(learned_values)
+    lake.print_map(learned_policy)
+    print(lake.test_policy(learned_policy), 'with 50 robots') # seems sliiiiiightly better than constant parameters
+    print()
